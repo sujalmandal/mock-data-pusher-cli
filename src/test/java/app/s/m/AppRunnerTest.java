@@ -10,8 +10,8 @@ class AppRunnerTest {
     void testCommand() {
         AppRunner runner = new AppRunner();
         runner.apiEndPoint = "http://localhost:8088/test";
-        runner.concurrentRequests = 2;
-        runner.totalRequestsToGenerate = 20;
+        runner.concurrentRequests = 100;
+        runner.totalRequestsToGenerate = "10,000";
         runner.sample = """
                 {
                     "userId":"{RANDOM(UUID)}",

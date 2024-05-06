@@ -3,6 +3,8 @@ package app.s.m;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import picocli.CommandLine;
 
+import static java.lang.Integer.parseInt;
+
 @CommandLine.Command
 public class AppRunner implements Runnable {
 
@@ -13,14 +15,14 @@ public class AppRunner implements Runnable {
     @CommandLine.Option(names = {"--concurrent-requests"}, description = "Total concurrent users")
     int concurrentRequests;
     @CommandLine.Option(names = {"--total-requests"}, description = "Total requests to generate users")
-    int totalRequestsToGenerate;
+    String totalRequestsToGenerate;
     @CommandLine.Option(names = {"--delay-between-requests"}, description = "Delay upper limit between requests in milliseconds", defaultValue = "250")
     int delayMs;
 
     @Override
     public void run() {
-        var mockDataGeneratorService = new MockDataGeneratorService(
-                delayMs, sample, apiEndPoint, concurrentRequests, totalRequestsToGenerate);
+        var mockDataGeneratorService = new MockDataGeneratorService(delayMs, sample,
+                apiEndPoint, concurrentRequests, parseInt(totalRequestsToGenerate.replaceAll("[,_]","")));
         try {
             mockDataGeneratorService.execute();
         } catch (InterruptedException | JsonProcessingException e) {
