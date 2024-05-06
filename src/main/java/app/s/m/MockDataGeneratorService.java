@@ -12,16 +12,12 @@ import okhttp3.RequestBody;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static app.s.m.Constants.*;
 import static java.util.concurrent.Executors.newWorkStealingPool;
@@ -33,16 +29,16 @@ public class MockDataGeneratorService {
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final ExecutorService executorService;  // Managed executor service in Quarkus
+    private final ConcurrentHashMap<String, Integer> responseStats;
 
     private final int delayMs;
     private final String sample;
     private final String apiEndPoint;
+    private final AtomicInteger progress;
     private final int totalRequestsToGenerate;
-    private final ConcurrentHashMap<String, Integer> responseStats;
 
-    private final AtomicInteger progress = new AtomicInteger(0);
-
-    public MockDataGeneratorService(int delayMs, String sample, String apiEndPoint, int concurrentRequests, int totalRequestsToGenerate) {
+    public MockDataGeneratorService(
+            int delayMs, String sample, String apiEndPoint, int concurrentRequests, int totalRequestsToGenerate) {
         this.delayMs = delayMs;
         this.sample = sample;
         this.apiEndPoint = apiEndPoint;
@@ -51,6 +47,7 @@ public class MockDataGeneratorService {
         this.random = new Random();
         this.httpClient = new OkHttpClient();
         this.objectMapper = new ObjectMapper();
+        this.progress = new AtomicInteger(0);
         this.responseStats = new ConcurrentHashMap<>();
         this.executorService = newWorkStealingPool(concurrentRequests);
     }
