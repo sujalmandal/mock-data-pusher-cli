@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static app.s.m.Constants.*;
 import static java.util.concurrent.Executors.newWorkStealingPool;
@@ -29,12 +30,13 @@ public class MockDataGeneratorService {
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final ExecutorService executorService;  // Managed executor service in Quarkus
-    private final ConcurrentHashMap<String, Integer> responseStats;
+    private final ConcurrentHashMap<String, Integer> responseCodeCountStats;
 
     private final int delayMs;
     private final String sample;
     private final String apiEndPoint;
     private final AtomicInteger progress;
+    private final AtomicLong totalTimeTakenMs;
     private final int totalRequestsToGenerate;
 
     public MockDataGeneratorService(
@@ -48,9 +50,55 @@ public class MockDataGeneratorService {
         this.httpClient = new OkHttpClient();
         this.objectMapper = new ObjectMapper();
         this.progress = new AtomicInteger(0);
-        this.responseStats = new ConcurrentHashMap<>();
+        this.totalTimeTakenMs = new AtomicLong(0);
+        this.responseCodeCountStats = new ConcurrentHashMap<>();
         this.executorService = newWorkStealingPool(concurrentRequests);
     }
+
+    void execute() throws InterruptedException, JsonProcessingException {
+        long appStartTime = System.currentTimeMillis();
+        var latch = new CountDownLatch(totalRequestsToGenerate);
+        for (int i = 0; i < totalRequestsToGenerate; i++) {
+            JsonNode rootNode = objectMapper.readTree(sample);
+            replacePlaceholders((ObjectNode) rootNode);
+            executorService.submit(() -> {
+                long startTime = System.currentTimeMillis();
+                int randomDelayMs = getRandomDelayMs(delayMs);
+                try {
+                    Thread.sleep(randomDelayMs);
+                    executeEndpoint(objectMapper.writeValueAsString(rootNode));
+                } catch (IOException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    long duration = System.currentTimeMillis() - (startTime + randomDelayMs);
+                    totalTimeTakenMs.addAndGet(duration);
+                    latch.countDown();
+                }
+            });
+        }
+        latch.await();
+        clearScreen();
+        double averageTime = totalRequestsToGenerate > 0 ? (double) totalTimeTakenMs.get() / totalRequestsToGenerate : 0;
+        System.out.println("Total responses");
+        responseCodeCountStats.forEach((status, count)-> System.out.printf("response status: %s - count: %s %n", status, count));
+        System.out.printf("Average Time per Request: %.2f ms\n", averageTime);
+        System.out.printf("Total time taken (including wait time): %s%n", System.currentTimeMillis() - appStartTime);
+    }
+
+    private void executeEndpoint(String jsonBody) throws IOException {
+        var body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
+        var request = new Request.Builder().url(apiEndPoint).post(body).build();
+
+        try (var response = httpClient.newCall(request).execute()) {
+            clearScreen();
+            var responseCode = response.code();
+            responseCodeCountStats.putIfAbsent(String.valueOf(responseCode), 0);
+            responseCodeCountStats.computeIfPresent(String.valueOf(responseCode), (k, v)-> v+1);
+            var totalDone = progress.incrementAndGet();
+            System.out.printf("%s out of %s done..\n", totalDone, totalRequestsToGenerate);
+        }
+    }
+
 
     private void replacePlaceholders(ObjectNode node) {
         node.fields().forEachRemaining(entry -> {
@@ -91,46 +139,8 @@ public class MockDataGeneratorService {
         return placeholder;
     }
 
-    void execute() throws InterruptedException, JsonProcessingException {
-        CountDownLatch latch = new CountDownLatch(totalRequestsToGenerate);
-        for (int i = 0; i < totalRequestsToGenerate; i++) {
-            JsonNode rootNode = objectMapper.readTree(sample);
-            replacePlaceholders((ObjectNode) rootNode);
-            executorService.submit(() -> {
-                try {
-                    System.out.println();
-                    Thread.sleep(getRandomDelayMs(delayMs));
-                    executeEndpoint(objectMapper.writeValueAsString(rootNode));
-                    System.out.println();
-                } catch (IOException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    latch.countDown();
-                }
-            });
-        }
-        latch.await();
-    }
-
     private int getRandomDelayMs(int upperBound) {
         return random.nextInt(upperBound) + 1;
-    }
-
-    private void executeEndpoint(String jsonBody) throws IOException {
-        var body = RequestBody.create(jsonBody, MediaType.get("application/json; charset=utf-8"));
-        var request = new Request.Builder().url(apiEndPoint).post(body).build();
-
-        try (var response = httpClient.newCall(request).execute()) {
-            clearScreen();
-            var responseCode = response.code();
-            responseStats.putIfAbsent(String.valueOf(responseCode), 0);
-            responseStats.computeIfPresent(String.valueOf(responseCode), (k, v)-> v+1);
-            var totalDone = progress.incrementAndGet();
-            System.out.println("#####################################################");
-            System.out.printf("%s out of %s done", totalDone, totalRequestsToGenerate);
-            System.out.printf("\n stats %s\n", responseStats);
-            System.out.println("#####################################################");
-        }
     }
 
     private static void clearScreen(){

@@ -19,6 +19,7 @@ class AppRunnerTest {
                     "gender":"{ANY(male,female)}"
                 }
                 """;
+        runner.delayMs = 50;
         runner.run();
     }
 }
