@@ -6,22 +6,23 @@ import picocli.CommandLine;
 @CommandLine.Command
 public class AppRunner implements Runnable {
 
-    @CommandLine.Option(names = {"-s", "--sample"}, description = "JSON schema of the input body accepted by the API")
+    @CommandLine.Option(names = {"--sample"}, description = "JSON schema of the input body accepted by the API")
     String sample;
-    @CommandLine.Option(names = {"-api", "--api-endpoint"}, description = "API endpoint to test")
+    @CommandLine.Option(names = {"--api-endpoint"}, description = "API endpoint to test")
     String apiEndPoint;
-    @CommandLine.Option(names = {"-cr", "--concurrent-requests"}, description = "Total concurrent users")
+    @CommandLine.Option(names = {"--concurrent-requests"}, description = "Total concurrent users")
     int concurrentRequests;
-    @CommandLine.Option(names = {"-t", "--total-requests"}, description = "Total requests to generate users")
+    @CommandLine.Option(names = {"--total-requests"}, description = "Total requests to generate users")
     int totalRequestsToGenerate;
-    @CommandLine.Option(names = {"-d", "--delay-between-requests"}, description = "Delay upper limit between requests in milliseconds")
+    @CommandLine.Option(names = {"--delay-between-requests"}, description = "Delay upper limit between requests in milliseconds", defaultValue = "250")
     int delayMs;
 
     @Override
     public void run() {
-        MockDataGeneratorService mockDataGeneratorService = new MockDataGeneratorService(concurrentRequests, totalRequestsToGenerate);
+        var mockDataGeneratorService = new MockDataGeneratorService(
+                delayMs, sample, apiEndPoint, concurrentRequests, totalRequestsToGenerate);
         try {
-            mockDataGeneratorService.testAPI(sample, apiEndPoint, delayMs);
+            mockDataGeneratorService.execute();
         } catch (InterruptedException | JsonProcessingException e) {
             throw new RuntimeException(e);
         }
